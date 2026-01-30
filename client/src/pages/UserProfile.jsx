@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Confetti from 'react-confetti';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { Flame, Scale, CheckSquare, Edit3, AlertTriangle, X, Calendar, Trash2, Plus } from 'lucide-react';
 
-// --- Edit Modal Component (Now with Add & Delete) ---
+// --- Edit Modal Component ---
 const EditModal = ({ isOpen, onClose, habits, onSave }) => {
     const [localHabits, setLocalHabits] = useState(habits);
 
@@ -24,7 +24,7 @@ const EditModal = ({ isOpen, onClose, habits, onSave }) => {
     };
 
     const handleAdd = () => {
-        // Create a temp ID based on timestamp so React doesn't complain about keys
+        // Create a temp ID based on timestamp
         const newHabit = { id: Date.now().toString(), title: '' };
         setLocalHabits([...localHabits, newHabit]);
     };
@@ -80,6 +80,8 @@ const EditModal = ({ isOpen, onClose, habits, onSave }) => {
 // --- Main Profile Component ---
 const UserProfile = () => {
   const { id } = useParams();
+  const navigate = useNavigate(); // Hook for navigation
+  
   const [user, setUser] = useState(null);
   const [todayLog, setTodayLog] = useState({ completedHabits: [] });
   const [showConfetti, setShowConfetti] = useState(false);
@@ -87,13 +89,16 @@ const UserProfile = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState('');
   
-  const isMe = localStorage.getItem('userId') === id; 
+  // Logic to determine if "I" am viewing "My" profile
+  const loggedInUserId = localStorage.getItem('userId');
+  const isMe = loggedInUserId === id; 
   const token = localStorage.getItem('token');
 
   useEffect(() => { fetchData(); }, [id]);
 
   const fetchData = async () => {
     try {
+      // NOTE: Make sure this URL matches your Render backend URL exactly
       const res = await axios.get(`https://tracker-api-y699.onrender.com/api/user/${id}`, { headers: { 'x-auth-token': token } });
       setUser(res.data);
       const todayStr = new Date().toISOString().split('T')[0];
@@ -118,7 +123,6 @@ const UserProfile = () => {
         if (res.data.currentStreak !== undefined) setUser(prev => ({ ...prev, currentStreak: res.data.currentStreak }));
     } catch (err) { 
         console.error("Log failed", err);
-        // Optional: Revert UI if needed, or just silent fail
     }
   };
 
@@ -132,14 +136,10 @@ const UserProfile = () => {
   };
 
   const saveHabits = async (newHabits) => {
-    // Filter out empty titles before saving
     const validHabits = newHabits.filter(h => h.title.trim() !== "");
     
     try {
-        // Send to backend
         const res = await axios.post('https://tracker-api-y699.onrender.com/api/update-habits', { habits: validHabits }, { headers: {'x-auth-token': token}});
-        
-        // Update local state immediately with the response (which should contain clean IDs)
         setUser({...user, habits: res.data.habits || validHabits}); 
         setIsEditing(false);
     } catch (err) { 
@@ -182,7 +182,20 @@ const UserProfile = () => {
     <div className="pb-24 pt-4 px-1 max-w-md mx-auto">
       {showConfetti && <Confetti numberOfPieces={200} recycle={false} />}
       
-      {/* 🔔 Alert */}
+      {/* 🔹 Navigation Alert for Friends 🔹 */}
+      {!isMe && loggedInUserId && (
+         <div className="bg-blue-900/30 border border-blue-500/30 p-3 rounded-xl mb-4 flex justify-between items-center backdrop-blur-md shadow-lg">
+            <span className="text-sm text-blue-200">You are viewing {user?.username}'s profile</span>
+            <button 
+                onClick={() => navigate(`/user/${loggedInUserId}`)}
+                className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2 rounded-lg transition-all shadow-md"
+            >
+                Go to My Profile
+            </button>
+         </div>
+      )}
+
+      {/* 🔔 Alert for Weight Update */}
       {isMe && isWeightDue && (
           <div className="mb-4 bg-yellow-900/30 border border-yellow-600/50 p-3 rounded-xl flex items-center gap-3">
               <AlertTriangle className="text-yellow-500" size={20} />
@@ -269,6 +282,8 @@ const UserProfile = () => {
                 </LineChart>
             </ResponsiveContainer>
         </div>
+        
+        {/* Only show input if it is MY profile */}
         {isMe && (
             <div className="mt-4 flex gap-2">
                 <input type="number" value={weightInput} onChange={(e) => setWeightInput(e.target.value)} placeholder="Current Weight (kg)" className="flex-1 bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white outline-none focus:border-blue-500" />
