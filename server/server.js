@@ -74,11 +74,11 @@ app.post('/api/login', async (req, res) => {
   const validPass = await bcrypt.compare(req.body.password, user.password);
   if (!validPass) return res.status(400).send('Invalid password');
   
+  // payload uses _id to match middleware
   const token = jwt.sign({ _id: user._id }, process.env.JWT_SECRET);
   res.send({ token, user: { id: user._id, username: user.username } });
 });
 
-// 3. Get All Users (Dashboard Leaderboard)
 // 3. Get All Users (Dashboard Leaderboard) -> WITH AUTO-RESET LOGIC
 app.get('/api/users', async (req, res) => {
   let users = await User.find().select('-password');
@@ -112,7 +112,7 @@ app.get('/api/users', async (req, res) => {
   res.json(users);
 });
 
-// 4. Get Single User Profile (THIS WAS MISSING!)
+// 4. Get Single User Profile
 app.get('/api/user/:id', auth, async (req, res) => {
   try {
     const user = await User.findById(req.params.id).select('-password');
@@ -122,7 +122,26 @@ app.get('/api/user/:id', auth, async (req, res) => {
   }
 });
 
-// 5. Toggle Habit (Check/Uncheck)
+// 5. UPDATE HABITS (*** NEWLY ADDED ***)
+app.post('/api/update-habits', auth, async (req, res) => {
+    try {
+        const { habits } = req.body; // Expecting array of {id, title}
+        const user = await User.findById(req.user._id);
+        
+        if (!user) return res.status(404).json({ msg: "User not found" });
+
+        // Update the user's habits
+        user.habits = habits;
+        
+        await user.save();
+        res.json({ habits: user.habits });
+    } catch (err) {
+        console.error("Update Habits Error:", err);
+        res.status(500).send("Server Error");
+    }
+});
+
+// 6. Toggle Habit (Check/Uncheck)
 app.post('/api/log', auth, async (req, res) => {
   const { habitId, isChecked } = req.body;
   const user = await User.findById(req.user._id);
@@ -140,6 +159,8 @@ app.post('/api/log', auth, async (req, res) => {
     log.completedHabits = log.completedHabits.filter(id => id !== habitId);
   }
 
+  // Check if ALL current habits are done
+  // We compare user.habits (current list) vs log.completedHabits
   const allHabitsDone = user.habits.every(h => log.completedHabits.includes(h.id));
   
   if (allHabitsDone && !log.fullyCompleted) {
@@ -154,7 +175,7 @@ app.post('/api/log', auth, async (req, res) => {
   res.json({ currentStreak: user.currentStreak, fullyCompleted: log.fullyCompleted });
 });
 
-// 6. Update Weight
+// 7. Update Weight
 app.post('/api/weight', auth, async (req, res) => {
   const user = await User.findById(req.user._id);
   user.weights.push({ value: req.body.weight, date: new Date() });

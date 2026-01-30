@@ -3,17 +3,30 @@ import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import Confetti from 'react-confetti';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { Flame, Scale, CheckSquare, Edit3, AlertTriangle, X, Calendar } from 'lucide-react';
+import { Flame, Scale, CheckSquare, Edit3, AlertTriangle, X, Calendar, Trash2, Plus } from 'lucide-react';
 
-// --- Edit Modal Component ---
+// --- Edit Modal Component (Now with Add & Delete) ---
 const EditModal = ({ isOpen, onClose, habits, onSave }) => {
     const [localHabits, setLocalHabits] = useState(habits);
-    useEffect(() => { if (habits) setLocalHabits(habits); }, [habits]);
+
+    useEffect(() => { 
+        if (habits) setLocalHabits(habits); 
+    }, [habits]);
 
     if (!isOpen) return null;
 
     const handleChange = (id, newTitle) => {
         setLocalHabits(localHabits.map(h => h.id === id ? { ...h, title: newTitle } : h));
+    };
+
+    const handleDelete = (id) => {
+        setLocalHabits(localHabits.filter(h => h.id !== id));
+    };
+
+    const handleAdd = () => {
+        // Create a temp ID based on timestamp so React doesn't complain about keys
+        const newHabit = { id: Date.now().toString(), title: '' };
+        setLocalHabits([...localHabits, newHabit]);
     };
 
     return (
@@ -23,19 +36,41 @@ const EditModal = ({ isOpen, onClose, habits, onSave }) => {
                     <h3 className="text-xl font-bold text-white">Customize Habits</h3>
                     <button onClick={onClose} className="text-gray-400 hover:text-white"><X size={20}/></button>
                 </div>
-                <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+                
+                <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1 mb-4 custom-scrollbar">
                     {localHabits.map((h) => (
-                        <input 
-                            key={h.id}
-                            value={h.title}
-                            onChange={(e) => handleChange(h.id, e.target.value)}
-                            className="w-full bg-gray-900 border border-gray-700 p-3 rounded-xl text-white focus:border-blue-500 outline-none"
-                        />
+                        <div key={h.id} className="flex gap-2 items-center">
+                            <input 
+                                value={h.title}
+                                onChange={(e) => handleChange(h.id, e.target.value)}
+                                placeholder="Enter habit name..."
+                                autoFocus={h.title === ''}
+                                className="flex-1 bg-gray-900 border border-gray-700 p-3 rounded-xl text-white focus:border-blue-500 outline-none placeholder-gray-600"
+                            />
+                            <button 
+                                onClick={() => handleDelete(h.id)}
+                                className="bg-red-900/30 hover:bg-red-900/60 text-red-400 p-3 rounded-xl border border-red-900/50 transition-colors"
+                            >
+                                <Trash2 size={18} />
+                            </button>
+                        </div>
                     ))}
+                    
+                    {localHabits.length === 0 && (
+                        <p className="text-center text-gray-500 text-sm py-4">No habits yet. Add one below!</p>
+                    )}
                 </div>
-                <div className="flex gap-3 mt-6">
-                    <button onClick={onClose} className="flex-1 bg-gray-700 hover:bg-gray-600 py-3 rounded-xl font-bold">Cancel</button>
-                    <button onClick={() => onSave(localHabits)} className="flex-1 bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold text-white">Save</button>
+
+                <button 
+                    onClick={handleAdd}
+                    className="w-full mb-6 flex items-center justify-center gap-2 border border-dashed border-gray-600 hover:border-blue-500 hover:text-blue-400 text-gray-400 py-3 rounded-xl transition-all"
+                >
+                    <Plus size={18} /> Add New Habit
+                </button>
+
+                <div className="flex gap-3">
+                    <button onClick={onClose} className="flex-1 bg-gray-700 hover:bg-gray-600 py-3 rounded-xl font-bold text-gray-200">Cancel</button>
+                    <button onClick={() => onSave(localHabits)} className="flex-1 bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold text-white shadow-lg shadow-blue-900/20">Save Changes</button>
                 </div>
             </div>
         </div>
@@ -81,7 +116,10 @@ const UserProfile = () => {
         const res = await axios.post('https://tracker-api-y699.onrender.com/api/log', { habitId, isChecked }, { headers: { 'x-auth-token': token } });
         if (res.data.fullyCompleted) setShowConfetti(true);
         if (res.data.currentStreak !== undefined) setUser(prev => ({ ...prev, currentStreak: res.data.currentStreak }));
-    } catch (err) { alert("Failed to save habit"); }
+    } catch (err) { 
+        console.error("Log failed", err);
+        // Optional: Revert UI if needed, or just silent fail
+    }
   };
 
   const updateWeight = async () => {
@@ -94,11 +132,20 @@ const UserProfile = () => {
   };
 
   const saveHabits = async (newHabits) => {
+    // Filter out empty titles before saving
+    const validHabits = newHabits.filter(h => h.title.trim() !== "");
+    
     try {
-        await axios.post('https://tracker-api-y699.onrender.com/api/update-habits', { habits: newHabits }, { headers: {'x-auth-token': token}});
-        setUser({...user, habits: newHabits});
+        // Send to backend
+        const res = await axios.post('https://tracker-api-y699.onrender.com/api/update-habits', { habits: validHabits }, { headers: {'x-auth-token': token}});
+        
+        // Update local state immediately with the response (which should contain clean IDs)
+        setUser({...user, habits: res.data.habits || validHabits}); 
         setIsEditing(false);
-    } catch (err) { alert("Failed to update habits."); }
+    } catch (err) { 
+        console.error(err);
+        alert("Failed to update habits. Check your internet or login status."); 
+    }
   };
 
   if (error) return <div className="text-center mt-10 text-red-500">{error}</div>;
@@ -122,7 +169,7 @@ const UserProfile = () => {
       else if (current < todayDate) {
           status = log?.fullyCompleted ? 'done' : 'missed';
       } else if (log?.fullyCompleted) {
-          status = 'done'; // In case they pre-filled future
+          status = 'done'; 
       }
 
       return { day: i + 1, date: dateStr, status };
@@ -165,7 +212,7 @@ const UserProfile = () => {
       {/* ✅ Habits */}
       <div className="flex justify-between items-end mb-3 px-1">
            <h3 className="text-lg font-bold text-gray-200 flex items-center gap-2"><CheckSquare size={18} className="text-blue-500"/> Daily Protocol</h3>
-           {isMe && <button onClick={() => setIsEditing(true)} className="text-xs flex items-center gap-1 bg-gray-800 border border-gray-700 px-3 py-1.5 rounded-lg text-gray-300"><Edit3 size={12}/> Edit</button>}
+           {isMe && <button onClick={() => setIsEditing(true)} className="text-xs flex items-center gap-1 bg-gray-800 border border-gray-700 px-3 py-1.5 rounded-lg text-gray-300 hover:text-white transition-colors"><Edit3 size={12}/> Customize</button>}
       </div>
 
       <div className="space-y-3 mb-8">
