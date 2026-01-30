@@ -18,7 +18,7 @@ const Login = () => {
     setLoading(true);
     
     // Ensure this matches your server URL
-    const API_URL = 'http://localhost:5000/api'; 
+    const API_URL = 'https://tracker-api-y699.onrender.com/api'; 
 
     try {
       const endpoint = isRegister ? '/register' : '/login';

@@ -59,7 +59,7 @@ const UserProfile = () => {
 
   const fetchData = async () => {
     try {
-      const res = await axios.get(`http://localhost:5000/api/user/${id}`, { headers: { 'x-auth-token': token } });
+      const res = await axios.get(`https://tracker-api-y699.onrender.com/api/user/${id}`, { headers: { 'x-auth-token': token } });
       setUser(res.data);
       const todayStr = new Date().toISOString().split('T')[0];
       const log = res.data.dailyLogs.find(l => l.date === todayStr) || { completedHabits: [] };
@@ -78,7 +78,7 @@ const UserProfile = () => {
     setTodayLog({ ...todayLog, completedHabits: newCompleted });
 
     try {
-        const res = await axios.post('http://localhost:5000/api/log', { habitId, isChecked }, { headers: { 'x-auth-token': token } });
+        const res = await axios.post('https://tracker-api-y699.onrender.com/api/log', { habitId, isChecked }, { headers: { 'x-auth-token': token } });
         if (res.data.fullyCompleted) setShowConfetti(true);
         if (res.data.currentStreak !== undefined) setUser(prev => ({ ...prev, currentStreak: res.data.currentStreak }));
     } catch (err) { alert("Failed to save habit"); }
@@ -87,7 +87,7 @@ const UserProfile = () => {
   const updateWeight = async () => {
     if (!weightInput) return;
     try {
-        await axios.post('http://localhost:5000/api/weight', { weight: weightInput }, { headers: { 'x-auth-token': token } });
+        await axios.post('https://tracker-api-y699.onrender.com/api/weight', { weight: weightInput }, { headers: { 'x-auth-token': token } });
         fetchData();
         setWeightInput('');
     } catch (err) { alert("Failed to update weight"); }
@@ -95,7 +95,7 @@ const UserProfile = () => {
 
   const saveHabits = async (newHabits) => {
     try {
-        await axios.post('http://localhost:5000/api/update-habits', { habits: newHabits }, { headers: {'x-auth-token': token}});
+        await axios.post('https://tracker-api-y699.onrender.com/api/update-habits', { habits: newHabits }, { headers: {'x-auth-token': token}});
         setUser({...user, habits: newHabits});
         setIsEditing(false);
     } catch (err) { alert("Failed to update habits."); }
